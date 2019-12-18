@@ -91,6 +91,24 @@
       <scope>provided</scope>
     </dependency>
 
+    <dependency>
+        <groupId>net.minidev</groupId>
+        <artifactId>json-smart</artifactId>
+        <version>2.3</version>
+    </dependency>
+
+    <dependency>
+        <groupId>com.nimbusds</groupId>
+        <artifactId>nimbus-jose-jwt</artifactId>
+        <version>8.2.1</version>
+    </dependency>
+
+      <dependency>
+        <groupId>com.ecogy.bpm.camunda</groupId>
+        <artifactId>auth-cookies</artifactId>
+        <version>0.0.1</version>
+      </dependency>
+
     <!-- rest api -->
     <dependency>
       <groupId>org.camunda.bpm</groupId>
@@ -340,6 +358,7 @@
         <dependency>
           <groupId>org.jboss.resteasy</groupId>
           <artifactId>resteasy-jaxrs</artifactId>
+          <version>3.9.3.Final</version>
           <scope>runtime</scope>
         </dependency>
         <dependency>
@@ -501,6 +520,7 @@
         <dependency>
           <groupId>org.jboss.resteasy</groupId>
           <artifactId>resteasy-jaxrs</artifactId>
+          <version>3.0.26</version>
           <scope>runtime</scope>
         </dependency>
         <dependency>
@@ -653,6 +673,7 @@
         <dependency>
           <groupId>org.jboss.resteasy</groupId>
           <artifactId>resteasy-jaxrs</artifactId>
+          <version>3.0.26</version>
           <scope>runtime</scope>
         </dependency>
         <dependency>

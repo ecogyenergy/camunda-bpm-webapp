@@ -16,9 +16,12 @@
  */
 package org.camunda.bpm.webapp.impl.security.auth;
 
+import com.ecogy.bpm.camunda.authentication.EcogyJWT;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import java.util.function.BiFunction;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.ws.rs.FormParam;
@@ -27,14 +30,21 @@ import javax.ws.rs.POST;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.core.Context;
+import javax.ws.rs.core.Cookie;
+import javax.ws.rs.core.NewCookie;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.Status;
+
+import org.joda.time.DateTime;
+import org.joda.time.Seconds;
 
 import org.camunda.bpm.engine.ProcessEngine;
 import org.camunda.bpm.engine.identity.Group;
 import org.camunda.bpm.engine.identity.Tenant;
 import org.camunda.bpm.engine.rest.exception.InvalidRequestException;
 import org.camunda.bpm.webapp.impl.util.ProcessEngineUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Jax-Rs resource allowing users to authenticate with username and password</p>
@@ -44,11 +54,18 @@ import org.camunda.bpm.webapp.impl.util.ProcessEngineUtil;
  */
 @Path(UserAuthenticationResource.PATH)
 public class UserAuthenticationResource {
-
   public static final String PATH = "/auth/user";
+
+  static private BiFunction<String,Response.ResponseBuilder,Response.ResponseBuilder> responseFunction;
+
+  private final Logger logger = LoggerFactory.getLogger(getClass());
 
   @Context
   protected HttpServletRequest request;
+
+  static public void setResponseFunction(final BiFunction<String,Response.ResponseBuilder,Response.ResponseBuilder> responseFunc) {
+    responseFunction = responseFunc;
+  }
 
   @GET
   @Path("/{processEngineName}")
@@ -85,18 +102,21 @@ public class UserAuthenticationResource {
     processEngine.getIdentityService().clearAuthentication();
 
     // check password / username
+    logger.info("checking password...");
     boolean isPasswordValid = processEngine.getIdentityService().checkPassword(username, password);
 
     if (!isPasswordValid) {
+      logger.info("password is incorrect");
       return unauthorized();
     }
-
+    logger.info("password is correct");
     AuthenticationService authenticationService = new AuthenticationService();
     UserAuthentication authentication = (UserAuthentication) authenticationService.createAuthenticate(processEngine, username, null, null);
 
     Set<String> authorizedApps = authentication.getAuthorizedApps();
 
     if (!authorizedApps.contains(appName)) {
+      logger.info("user is not authorized to use app {}", appName);
       return forbidden();
     }
 
@@ -104,7 +124,41 @@ public class UserAuthenticationResource {
       Authentications.revalidateSession(request, authentication);
     }
 
-    return Response.ok(AuthenticationDto.fromAuthentication(authentication)).build();
+    Response.ResponseBuilder response = Response.ok(AuthenticationDto.fromAuthentication(authentication));
+    /*
+    if (responseFunction == null) {
+      final String responseFunctionClassName = System.getenv("CAMUNDA_AUTHENTICATION_RESPONSE_FUNCTION");
+      if (responseFunctionClassName != null) {
+           final Class rbclass = Response.ResponseBuilder.class;
+           logger.info("ResponseBuilder class={} {}, classLoader={}", rbclass.toGenericString(), rbclass.hashCode(), rbclass.getClassLoader());
+           try {
+              final Class rfClass = Class.forName(responseFunctionClassName, true, response.getClass().getClassLoader());
+              logger.info("Response function class={} {}, classLoader={}", rfClass.toGenericString(), rfClass.hashCode(), rfClass.getClassLoader());
+              responseFunction = (BiFunction<String,Response.ResponseBuilder,Response.ResponseBuilder>)rfClass.newInstance();
+              logger.info("response function={}", responseFunction);
+          } catch (InstantiationException | IllegalAccessException | ClassNotFoundException exception) {
+              throw new IllegalArgumentException("Authentication Response Function could not be loaded", exception);
+          }
+
+      }
+    }
+    if (responseFunction != null) {
+        response = responseFunction.apply(username,response);
+    }
+    */
+    String cookieDomain = System.getenv("CAMUNDA_AUTH_COOKIE_DOMAIN");
+    if (cookieDomain == null) {
+        cookieDomain = "localhost";
+    }
+    final Cookie cookie = new Cookie("Authentication", EcogyJWT.getInstance().getIdToken(username), "/", cookieDomain);
+    final int maxCookieAgeSecs = Seconds.secondsBetween(new DateTime(), EcogyJWT.getInstance().getIdTokenExpiryTime()).getSeconds();
+    if (maxCookieAgeSecs > 0) {
+          response.cookie(new NewCookie(cookie, "", maxCookieAgeSecs, false));
+          logger.info("Added authentication cookie");
+    } else {
+          logger.error("Authentication Cookie has expired");
+    }
+    return response.build();
   }
 
   protected List<String> getGroupsOfUser(ProcessEngine engine, String userId) {
