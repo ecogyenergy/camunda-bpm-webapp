@@ -154,7 +154,7 @@ public class UserAuthenticationResource {
     final int maxCookieAgeSecs = Seconds.secondsBetween(new DateTime(), EcogyJWT.getInstance().getIdTokenExpiryTime()).getSeconds();
     if (maxCookieAgeSecs > 0) {
           response.cookie(new NewCookie(cookie, "", maxCookieAgeSecs, false));
-          logger.info("Added authentication cookie");
+          logger.info("Added authentication cookie with expiry in {} seconds", maxCookieAgeSecs);
     } else {
           logger.error("Authentication Cookie has expired");
     }
